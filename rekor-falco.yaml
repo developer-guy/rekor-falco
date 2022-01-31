@@ -1,0 +1,6 @@
+- rule: Check email exist
+  desc: Email Activity Alert
+  condition: tlog.email=developerguyn@gmail.com
+  output: Email found in Rekor Transparency Log (uuid=%tlog.uuid email=%tlog.email)
+  priority: INFO
+  source: rekor-falco

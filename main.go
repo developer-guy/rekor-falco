@@ -7,10 +7,10 @@ import (
 	"encoding/pem"
 	"fmt"
 	"github.com/sigstore/rekor/pkg/generated/client/entries"
-	"github.com/sigstore/rekor/pkg/generated/client/tlog"
 	"github.com/sigstore/rekor/pkg/generated/models"
 	"io"
 	"io/ioutil"
+	"log"
 	"strings"
 	"time"
 
@@ -77,7 +77,7 @@ func (m *RekorFalcoPlugin) Info() *plugins.Info {
 	}
 }
 
-func (p *RekorFalcoPlugin) InitSchema() *sdk.SchemaInfo {
+func (m *RekorFalcoPlugin) InitSchema() *sdk.SchemaInfo {
 	reflector := jsonschema.Reflector{
 		RequiredFromJSONSchemaTags: true, // all properties are optional by default
 		AllowAdditionalProperties:  true, // unrecognized properties don't cause a parsing failures
@@ -107,7 +107,7 @@ func (m *RekorFalcoPlugin) Open(prms string) (source.Instance, error) {
 		return nil, err
 	}
 
-	li, err := rc.Tlog.GetLogInfo(&tlog.GetLogInfoParams{})
+	li, err := rc.Tlog.GetLogInfo(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -127,19 +127,18 @@ func (m *MyInstance) NextBatch(pState sdk.PluginState, evts sdk.EventWriters) (i
 	var evt sdk.EventWriter
 	for n = 0; n < evts.Len(); n++ {
 		evt = evts.Get(n)
-		e, err := m.rekorclient.Entries.GetLogEntryByIndex(&entries.GetLogEntryByIndexParams{
-			LogIndex: int64(m.currentIndex),
-		})
+
+		log.Printf("getting log entry with index=%d", m.currentIndex)
+		params := entries.NewGetLogEntryByIndexParams().
+			WithLogIndex(int64(m.currentIndex)).
+			WithTimeout(time.Second * 30)
+
+		e, err := m.rekorclient.Entries.GetLogEntryByIndex(params)
 		if err != nil {
-			return 0, err
+			log.Printf("got error whiele getting log entry: %+v", err)
+			continue
 		}
 
-		m.currentIndex++
-
-		// It is not mandatory to set the Timestamp of the event (it
-		// wo
-		//ax),
-		// but it's a good practice.
 		evt.SetTimestamp(uint64(time.Now().UnixNano()))
 
 		p, err := json.Marshal(e.Payload)
@@ -153,6 +152,7 @@ func (m *MyInstance) NextBatch(pState sdk.PluginState, evts sdk.EventWriters) (i
 		}
 
 		m.currentIndex++
+		log.Printf("currentIndex incremented to: %d", m.currentIndex)
 	}
 	return n, nil
 }
@@ -170,7 +170,8 @@ func (m *RekorFalcoPlugin) String(in io.ReadSeeker) (string, error) {
 
 func (m *RekorFalcoPlugin) Fields() []sdk.FieldEntry {
 	return []sdk.FieldEntry{
-		{Type: "string", Name: "tlog.email", Desc: "The email value in the Rekor Transparency Log, as a string"},
+		{Type: "string", Name: "tlog.email", Desc: "The email value in the Rekor Transparency Log"},
+		{Type: "string", Name: "tlog.uuid", Desc: "The UUID information of the entry"},
 	}
 }
 
@@ -184,9 +185,14 @@ func (m *RekorFalcoPlugin) Extract(req sdk.ExtractRequest, evt sdk.EventReader) 
 		return err
 	}
 
-	var email string
-	for _, p := range logEntry {
-		// (3) Decode bodyb
+	var (
+		email string
+		uuid  string
+	)
+
+	for entryId, p := range logEntry {
+		uuid = entryId
+		// (3) Decode body
 		decodedBody := make(map[string]interface{})
 		err := json.NewDecoder(
 			base64.NewDecoder(base64.URLEncoding, strings.NewReader(p.Body.(string))),
@@ -195,8 +201,23 @@ func (m *RekorFalcoPlugin) Extract(req sdk.ExtractRequest, evt sdk.EventReader) 
 			return err
 		}
 
-		content := decodedBody["spec"].(map[string]interface{})["signature"].(map[string]interface{})["publicKey"].(map[string]interface{})["content"].(string)
-		certPEM, err := base64.StdEncoding.DecodeString(content)
+		//content := decodedBody["spec"].(map[string]interface{})["signature"].(map[string]interface{})["publicKey"].(map[string]interface{})["content"].(string)
+		var publicKeyContent string
+		if spec, ok := decodedBody["spec"].(map[string]interface{}); ok {
+			if signature, ok := spec["signature"].(map[string]interface{}); ok {
+				if publicKey, ok := signature["publicKey"].(map[string]interface{}); ok {
+					if content, ok := publicKey["content"].(string); ok {
+						publicKeyContent = content
+					}
+				}
+			}
+		}
+
+		if publicKeyContent == "" {
+			return nil
+		}
+
+		certPEM, err := base64.StdEncoding.DecodeString(publicKeyContent)
 		if err != nil {
 			return err
 		}
@@ -217,6 +238,8 @@ func (m *RekorFalcoPlugin) Extract(req sdk.ExtractRequest, evt sdk.EventReader) 
 	switch req.FieldID() {
 	case 0: // tlog.email
 		req.SetValue(email)
+	case 1: // tlog.uuid
+		req.SetValue(uuid)
 	default:
 		return fmt.Errorf("no known field: %s", req.Field())
 	}
