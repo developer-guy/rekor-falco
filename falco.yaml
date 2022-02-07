@@ -45,10 +45,12 @@ rules_file:
 # https://github.com/falcosecurity/plugins/blob/master/plugins/cloudtrail/README.md.
 plugins:
   - name: rekor-falco
-    library_path: /tmp/lima/librekor-falco.so
+    library_path: /tmp/lima/rekor-falco/librekor-falco.so
+    init_config: ''
+    open_params: ""
 
 # Optional. If not specified the first entry in plugins is used.
-load_plugins: [rekor-falco]
+load_plugins: [ rekor-falco ]
 
 # Setting this list to empty ensures that the above plugins are *not*
 # loaded and enabled by default. If you want to use the above plugins,
@@ -192,9 +194,9 @@ syslog_output:
 # SIGUSR1.
 
 file_output:
-  enabled: false
+  enabled: true
   keep_alive: false
-  filename: ./events.txt
+  filename: /tmp/lima/falco.log
 
 stdout_output:
   enabled: true

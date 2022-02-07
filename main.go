@@ -135,7 +135,7 @@ func (m *MyInstance) NextBatch(pState sdk.PluginState, evts sdk.EventWriters) (i
 
 		e, err := m.rekorclient.Entries.GetLogEntryByIndex(params)
 		if err != nil {
-			log.Printf("got error whiele getting log entry: %+v", err)
+			log.Printf("got error while getting log entry: %+v", err)
 			continue
 		}
 
@@ -232,7 +232,11 @@ func (m *RekorFalcoPlugin) Extract(req sdk.ExtractRequest, evt sdk.EventReader) 
 			panic("failed to parse certificate: " + err.Error())
 		}
 
-		email = cert.EmailAddresses[0]
+		if len(cert.EmailAddresses) > 0 {
+			email = cert.EmailAddresses[0]
+		} else {
+			log.Printf("email not found for uuid=%s", uuid)
+		}
 	}
 
 	switch req.FieldID() {

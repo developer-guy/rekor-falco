@@ -17,3 +17,9 @@ clean:
 
 $(OUTPUT): *.go
 	@$(GODEBUGFLAGS) $(GO) build -buildmode=c-shared -o $(OUTPUT)
+
+lima:
+	mkdir -pv /tmp/lima/rekor-falco
+	cp -r . /tmp/lima/rekor-falco
+	limactl start --tty=false lima.yaml
+	limactl shell lima -- tail -f /tmp/lima/falco.log
