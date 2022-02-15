@@ -13,13 +13,16 @@ endif
 all: $(OUTPUT)
 
 clean:
+	@rm -rf /tmp/lima/rekor-falco
 	@rm -f *.so *.h
 
 $(OUTPUT): *.go
 	@$(GODEBUGFLAGS) $(GO) build -buildmode=c-shared -o $(OUTPUT)
 
-lima:
+lima: clean
 	mkdir -pv /tmp/lima/rekor-falco
 	cp -r . /tmp/lima/rekor-falco
 	limactl start --tty=false lima.yaml
+	limactl shell lima -- cd /tmp/lima/rekor-falco && make all
+	limactl shell lima -- falco -r /tmp/lima/rekor-falco/example-rule.yaml -c /tmp/lima/rekor-falco/falco.yaml &> /tmp/lima/falco.log &
 	limactl shell lima -- tail -f /tmp/lima/falco.log

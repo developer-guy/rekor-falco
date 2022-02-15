@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"github.com/sigstore/rekor/pkg/generated/client/entries"
-	"github.com/sigstore/rekor/pkg/generated/models"
 	"io"
 	"io/ioutil"
 	"log"
 	"strings"
 	"time"
+
+	"github.com/sigstore/rekor/pkg/generated/client/entries"
+	"github.com/sigstore/rekor/pkg/generated/models"
 
 	"github.com/alecthomas/jsonschema"
 	"github.com/falcosecurity/plugin-sdk-go/pkg/sdk"
@@ -128,14 +129,12 @@ func (m *MyInstance) NextBatch(pState sdk.PluginState, evts sdk.EventWriters) (i
 	for n = 0; n < evts.Len(); n++ {
 		evt = evts.Get(n)
 
-		log.Printf("getting log entry with index=%d", m.currentIndex)
 		params := entries.NewGetLogEntryByIndexParams().
 			WithLogIndex(int64(m.currentIndex)).
 			WithTimeout(time.Second * 30)
 
 		e, err := m.rekorclient.Entries.GetLogEntryByIndex(params)
 		if err != nil {
-			log.Printf("got error while getting log entry: %+v", err)
 			continue
 		}
 
