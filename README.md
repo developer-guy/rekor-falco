@@ -16,6 +16,7 @@ Next, you need to spin up your Falco instance with plugin enabled, to do that ru
 $ falco -r example-rule.yaml -c falco.yaml
 ```
 > Do not forget to replace the email adress within the example-rule.yaml to verify it is working.
+> Also make sure to change the library path in the falco.yaml to the directory your falco-rekor plugin 
 
 Once Falco is up and running, you should sign something with cosign with experimental mode enabled:
 
